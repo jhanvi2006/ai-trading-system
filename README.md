@@ -1,1 +1,1 @@
-# stock-teaching-and-feedback-ai
+# ai-trading system

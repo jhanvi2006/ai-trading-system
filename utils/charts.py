@@ -40,21 +40,16 @@ def create_candlestick(df, stock, range_option):
     # MA10 and MA20
     fig.add_trace(go.Scatter(
         x=df_plot['Date'],
-        y=df_plot['MA10'],
+        y=df_plot['MA_10'],
         mode='lines',
         name='MA10',
         line=dict(color='orange', width=2)
     ))
 
-    # RSI (simple 14-period)
-    delta = df_plot['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
+    # Use pre-computed RSI
     fig.add_trace(go.Scatter(
         x=df_plot['Date'],
-        y=rsi,
+        y=df_plot['RSI'],
         mode='lines',
         name='RSI',
         line=dict(color='purple', width=1, dash='dot'),

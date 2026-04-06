@@ -1,22 +1,28 @@
-# UI Improvement TODO
+# AI Trading Performance Optimization - TODO Tracker
 
-✅ **UI Improvements Complete!**
+## Original Issues Fixed ✅ (from previous TODO)
 
-**Enhanced Features:**
+## New Performance Plan (Confirmed: Optimize button is slow - GA + RL)
 
-- 📱 Sidebar: Global stock selector + theme toggle
-- 🖥️ Tabs: Clean navigation (User/AI)
-- 💎 User Dashboard: Colored KPIs, portfolio pie, styled BUY/SELL, holdings table
-- ⚡ AI Dashboard: GA progress bar, advanced metrics, equity curve, trade dataframe, battle chart
-- 📊 Charts: Volume bars, RSI overlay, better colors/legends
+**Goal**: Reduce \"🚀 Optimize & Run AI Trading\" from 10-30s to <3s.
 
-**All steps completed:**
+### Steps:
 
-- [x] Create TODO.md
-- [x] streamlit_app.py updates
-- [x] ui/user_dashboard.py enhancements
-- [x] ui/ai_dashboard.py polish
-- [x] utils/charts.py advanced indicators
-- [x] Tested: App runs successfully
+- [x] Step 1: Optimize src/genetic_algorithm.py ✅
+  - Reduced population_size=20, generations=20
+  - Added 20% data sampling for fitness
+  - Vectorized price extraction
 
-**View Results:** `streamlit run streamlit_app.py`
+- [x] Step 2: Optimize ui/ai_dashboard.py ✅
+  - Added @st.cache_data for GA, RL train, sim
+  - RL episodes=25
+  - Cached market overview data
+  - Added computing state + button disable
+
+- [ ] Step 3: utils/data_loader.py cache tweak
+
+- [ ] Step 4: Test full pipeline
+  - streamlit run streamlit_app.py
+  - Time before/after Optimize button
+
+**Current Progress**: Starting Step 1.

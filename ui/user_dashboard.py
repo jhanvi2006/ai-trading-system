@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-
+44
 from utils.data_loader import load_clean_data
 from utils.charts import create_candlestick
 from utils.portfolio import *
@@ -20,20 +20,23 @@ def show_user_dashboard():
 
     cols = st.columns(5)
     stocks = ["AAPL", "AMZN", "GOOGL", "MSFT", "NVDA"]
+    current_prices = {}
 
     for i, s in enumerate(stocks):
         df_s = load_clean_data(s)
-        change = ((df_s['Close'].iloc[-1] / df_s['Close'].iloc[-2] - 1) * 100)
+        current_price = df_s['Close'].iloc[-1]
+        current_prices[s] = current_price
+        change = ((current_price / df_s['Close'].iloc[-2] - 1) * 100)
 
         with cols[i]:
-            st.metric(s, f"${df_s['Close'].iloc[-1]:.2f}", f"{change:+.1f}%")
+            st.metric(s, f"${current_price:.2f}", f"{change:+.1f}%")
 
     # =========================
     # 📊 DASHBOARD
     # =========================
     st.subheader("💰 Portfolio Dashboard")
 
-    portfolio_value = calculate_portfolio_value(st.session_state.portfolio)
+    portfolio_value = calculate_portfolio_value(st.session_state.portfolio, current_prices)
     total_value = st.session_state.balance + portfolio_value
     profit = total_value - st.session_state.initial_balance
     profit_pct = (profit / st.session_state.initial_balance) * 100

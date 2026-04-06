@@ -17,6 +17,6 @@ def sell_stock(st, stock, price):
         st.session_state.balance += price
         st.session_state.portfolio[stock] -= 1
 
-def calculate_portfolio_value(portfolio):
+def calculate_portfolio_value(portfolio, current_prices):
 
-    return sum(v * 100 for v in portfolio.values())
+    return sum(v * current_prices.get(k, 0) for k, v in portfolio.items())

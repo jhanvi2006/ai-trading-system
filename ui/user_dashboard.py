@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-44
+
 from utils.data_loader import load_clean_data
 from utils.charts import create_candlestick
 from utils.portfolio import *

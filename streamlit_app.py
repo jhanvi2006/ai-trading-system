@@ -23,18 +23,10 @@ st.sidebar.title("⚙️ Controls")
 selected_stock = st.sidebar.selectbox("Select Stock", ["AAPL", "AMZN", "GOOGL", "MSFT", "NVDA"])
 st.session_state.selected_stock = selected_stock
 
-# Theme toggle
-theme = st.sidebar.selectbox("Theme", ["Light", "Dark"])
-if theme == "Dark":
-    st.markdown("""
-        <style>
-            section[data-testid="stSidebar"] {background-color: #0e1117;}
-            .stApp {background-color: #0e1117; color: white;}
-        </style>
-    """, unsafe_allow_html=True)
+
 
 # Hero Header
-st.markdown('<h1 class="main-header">🚀 AI Stock Trading System (GA + RL)</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🚀 AI Trading System</h1>', unsafe_allow_html=True)
 st.markdown("---")
 
 # Tabs instead of radio

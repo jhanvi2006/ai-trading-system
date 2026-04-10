@@ -7,31 +7,14 @@ from utils.charts import create_candlestick
 from utils.portfolio import calculate_portfolio_value
 
 from src.genetic_algorithm import genetic_algorithm
-from src.rl_agent import RLTradingAgent
-from src.simulator import simulate_trading_rl
+from src.simulator import simulate_trading_ga
 
 @st.cache_data
 def run_genetic_algorithm(_df):
     """Cached GA"""
     return genetic_algorithm(_df)
 
-@st.cache_data
-def train_rl_agent(_train_df, _strategy):
-    """Cached RL training"""
-    agent = RLTradingAgent(actions=["BUY", "SELL", "HOLD"])
-    agent.set_initial_strategy(_strategy)
-    for _ in range(25):  # Reduced episodes
-        simulate_trading_rl(agent, _train_df)
-    return agent
-
-@st.cache_data
-def final_simulation(_agent, _test_df):
-    """Cached final sim"""
-    return simulate_trading_rl(_agent, _test_df)
-
-
 def show_ai_dashboard():
-
     stock = st.session_state.get('selected_stock', 'AAPL')
     df = load_clean_data(stock)
     prices = df['Close'].values
@@ -53,32 +36,33 @@ def show_ai_dashboard():
         df_s = st.session_state.market_data[s]
         current_price = df_s['Close'].iloc[-1]
         current_prices[s] = current_price
-        change_pct = ((current_price / df_s['Close'].iloc[-2] - 1) * 100)
+        if len(df_s) > 1:
+            change_pct = ((current_price / df_s['Close'].iloc[-2] - 1) * 100)
+        else:
+            change_pct = 0
 
         with cols[i]:
             st.metric(s, f"${current_price:.2f}", f"{change_pct:+.1f}%")
 
     # =========================
-    # 🔮 PREDICTION
+    # 💡 GA PREDICTION (Basic)
     # =========================
-    if "ai_agent" in st.session_state:
-        trained_agent = st.session_state["ai_agent"]
+    if "ga_strategy" in st.session_state:
+        strat = st.session_state["ga_strategy"]
+        last_price = df['Close'].iloc[-1]
+        prev_price = df['Close'].iloc[-2]
+        change = (last_price - prev_price) / prev_price
         
-        last_row = df.iloc[-1]
-        prev_row = df.iloc[-2]
-        current_state = trained_agent.get_state(last_row, prev_close=prev_row["Close"], prev_ma=prev_row["MA_10"])
-        next_action = trained_agent.choose_action(current_state)
-        
-        if next_action == "BUY":
-            trend = "🔼 Bullish (AI Recommends: BUY)"
-        elif next_action == "SELL":
-            trend = "🔽 Bearish (AI Recommends: SELL)"
+        if change < -strat.get("buy_threshold", 0.02):
+            trend = "🔼 Bullish (GA Recommends: BUY)"
+        elif change > strat.get("sell_threshold", 0.03):
+            trend = "🔽 Bearish (GA Recommends: SELL)"
         else:
-            trend = "➡️ Neutral (AI Recommends: HOLD)"
+            trend = "➡️ Neutral (GA Recommends: HOLD)"
             
-        st.success(f"🤖 Live AI Prediction: **{trend}**", icon="🔮")
+        st.success(f"🤖 Live Strategy Prediction: **{trend}**", icon="💡")
     else:
-        st.info("💡 Click 'Optimize & Run AI Trading' below to generate real-time RL predictions!", icon="🔮")
+        st.info("💡 Click 'Optimize & Run Trading' below to generate strategy predictions!", icon="⚙️")
 
     # =========================
     # 📈 CHART
@@ -90,7 +74,7 @@ def show_ai_dashboard():
     fig = create_candlestick(df, stock, range_option)
 
     # =========================
-    # ✅ ADD BUY/SELL MARKERS (FINAL FIX)
+    # ✅ ADD BUY/SELL MARKERS
     # =========================
     if "ai_trades" in st.session_state:
         trades = st.session_state["ai_trades"]
@@ -121,8 +105,6 @@ def show_ai_dashboard():
                 sell_x.append(date)
                 sell_y.append(price)
 
-
-
         # BUY markers
         fig.add_trace(go.Scatter(
             x=buy_x,
@@ -144,56 +126,32 @@ def show_ai_dashboard():
     st.plotly_chart(fig, use_container_width=True, key=f"ai_chart_{stock}_{range_option}")
 
     # =========================
-    # 🚀 RUN AI
+    # 🚀 RUN OPTIMIZATION
     # =========================
-    if st.button("🚀 Optimize & Run AI Trading", type="primary", use_container_width=True):
+    if st.button("⚙️ Optimize & Run Trading", type="primary", use_container_width=True):
 
         progress = st.progress(0)
         status = st.empty()
 
         # 🔹 GA
         status.info("🎯 Running Genetic Algorithm...")
-        progress.progress(30)
+        progress.progress(40)
         best_params = genetic_algorithm(df)
+        st.session_state["ga_strategy"] = best_params
 
-        # 🔹 RL INIT
-        status.info("🤖 Initializing RL Agent with GA...")
-        progress.progress(70)
-
-        agent = RLTradingAgent(actions=["BUY", "SELL", "HOLD"])
-
-        ga_strategy = {
-            "buy_threshold": best_params.get("buy_threshold", 0.02),
-            "sell_threshold": best_params.get("sell_threshold", 0.03),
-            "position_size_pct": best_params.get("position_size_pct", 0.1)
-        }
-
-        agent.set_initial_strategy(ga_strategy)
-
-
-        # Train/test split to prevent overfitting
-        split = int(len(df) * 0.8)
-        train_df = df.iloc[:split]
-        test_df = df.iloc[split:]
-
-        # 🔹 TRAIN RL on train
-        status.info("🧠 Training RL Agent...")
-        for _ in range(50):
-            simulate_trading_rl(agent, train_df)
-
-        # 🔹 FINAL RUN on test
+        # 🔹 FINAL RUN
         status.info("⚡ Simulating Trading...")
-        progress.progress(100)
+        progress.progress(80)
 
-        result = simulate_trading_rl(agent, test_df)
+        result = simulate_trading_ga(best_params, df)
 
-
-        # ✅ STORE TRADES & AGENT
+        # ✅ STORE TRADES
         st.session_state["ai_trades"] = result["trades"]
-        st.session_state["ai_agent"] = agent
 
+        progress.progress(100)
+        status.empty()
         progress.empty()
-        st.success("✅ AI Trading Complete!")
+        st.success("✅ Strategy Optimization and Trading Complete!")
 
         final_value = result["final_balance"]
         profit = result["profit"]
@@ -240,26 +198,11 @@ def show_ai_dashboard():
             st.dataframe(trades_df, use_container_width=True)
 
         # =========================
-        # ⚖️ AI VS USER
-        # =========================
-        if "balance" in st.session_state:
-
-            user_value = st.session_state.balance + calculate_portfolio_value(st.session_state.portfolio, current_prices)
-
-            st.subheader("⚖️ AI vs User")
-
-            fig3 = go.Figure()
-            fig3.add_bar(name="User", x=["Value"], y=[user_value])
-            fig3.add_bar(name="AI", x=["Value"], y=[final_value])
-
-            st.plotly_chart(fig3, use_container_width=True)
-
-        # =========================
         # 🔄 RESET
         # =========================
         if st.button("🔄 Reset Simulation"):
             st.session_state.pop("ai_trades", None)
-            st.session_state.pop("ai_agent", None)
+            st.session_state.pop("ga_strategy", None)
             if "market_data" in st.session_state:
                 del st.session_state.market_data
             st.rerun()

@@ -1,6 +1,6 @@
-def simulate_trading_rl(agent, data, initial_balance=10000):
+def simulate_trading_ga(strategy, data, initial_balance=10000):
     balance = initial_balance
-    shares = 0.0  # float for fractional possible
+    shares = 0.0
 
     trades = []
     total_trades = 0
@@ -8,90 +8,63 @@ def simulate_trading_rl(agent, data, initial_balance=10000):
 
     history = [initial_balance]
 
-    transaction_cost_rate = 0.001
-    position_size_pct = 0.1  # 10% risk per trade
+    # Use GA strategy parameters
+    buy_threshold = strategy.get("buy_threshold", 0.02)
+    sell_threshold = strategy.get("sell_threshold", 0.03)
+    position_size_pct = strategy.get("position_size_pct", 0.1)
 
-    buy_trades = []  # Track open buys for proper P&L
+    buy_trades = []  # Track open buys for P&L tracking
+    prices = data["Close"].values
 
-    for i in range(1, len(data)):
-        row = data.iloc[i]
-        prev_row = data.iloc[i - 1]
-
-        price = row["Close"]
-
-        p_close = data.iloc[i-2]["Close"] if i > 1 else prev_row["Close"]
-        p_ma = data.iloc[i-2]["MA_10"] if i > 1 else prev_row["MA_10"]
-        state = agent.get_state(prev_row, prev_close=p_close, prev_ma=p_ma)
-
-        action = agent.choose_action(state)
-
-        old_value = balance + shares * prev_row["Close"]
-        trade_made = False
-
+    for i in range(1, len(prices)):
+        price = prices[i]
+        prev_price = prices[i - 1]
+        
+        change = (price - prev_price) / prev_price
+        
+        old_value = balance + shares * prev_price
+        
         shares_to_trade = max(1, int((balance * position_size_pct) / price))
         shares_to_trade = min(shares_to_trade, int(shares)) if shares > 0 else shares_to_trade
 
-        # BUY
-        if action == "BUY" and balance >= price * shares_to_trade:
-            cost = price * shares_to_trade * transaction_cost_rate
+        # BUY Logic: If price drops more than the threshold
+        if change < -buy_threshold and balance >= price * shares_to_trade:
             shares += shares_to_trade
-            balance -= (price * shares_to_trade + cost)
-
-            trade_made = True
+            balance -= price * shares_to_trade
+            
             buy_trades.append({"shares": shares_to_trade, "buy_price": price})
-
             trades.append({
                 "type": "BUY",
                 "price": price,
                 "shares": shares_to_trade,
-                "step": row.name
+                "step": data.index[i]
             })
 
-        # SELL
-        elif action == "SELL" and shares >= shares_to_trade:
-            cost = price * shares_to_trade * transaction_cost_rate
+        # SELL Logic: If price increases more than the threshold
+        elif change > sell_threshold and shares >= shares_to_trade:
             shares -= shares_to_trade
-            balance += (price * shares_to_trade - cost)
+            balance += price * shares_to_trade
 
-            trade_made = True
             total_trades += 1
 
-            # P&L for this sell
-            sell_profit = (price - buy_trades[-1]["buy_price"]) * shares_to_trade if buy_trades else 0
-            if sell_profit > 0:
-                wins += 1
+            # Check if this trade was profitable
             if buy_trades:
-                buy_trades.pop()  # Close last buy
+                sell_profit = (price - buy_trades[-1]["buy_price"]) * shares_to_trade
+                if sell_profit > 0:
+                    wins += 1
+                buy_trades.pop()  # Close the latest active buy position
 
             trades.append({
                 "type": "SELL",
                 "price": price,
                 "shares": shares_to_trade,
-                "step": row.name
+                "step": data.index[i]
             })
 
-        # =========================
-        # NEW VALUE
-        # =========================
         new_value = balance + shares * price
-
-        # REWARD: normalized profit + inactivity/sharpe penalty
-        profit_pct = (new_value - old_value) / old_value
-        if trade_made:
-            reward = profit_pct * 10  # Scale
-        else:
-            reward = -0.1 * profit_pct  # Small opportunity cost
-
-        next_state = agent.get_state(row, prev_close=prev_row["Close"], prev_ma=prev_row["MA_10"])
-        agent.learn(state, action, reward, next_state)
-
-        # Epsilon decay slower (every 10 steps equiv)
-        if i % 10 == 0:
-            agent.epsilon = max(0.01, agent.epsilon * 0.995)
-
         history.append(new_value)
 
-    final_value = balance + shares * data.iloc[-1]["Close"]
+    final_value = balance + shares * prices[-1]
 
     return {
         "final_balance": final_value,

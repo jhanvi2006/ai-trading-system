@@ -144,6 +144,14 @@ def show_ai_dashboard():
     st.plotly_chart(fig, use_container_width=True, key=f"ai_chart_{stock}_{range_option}")
 
     # =========================
+    # ⚙️ GA CONFIGURATION
+    # =========================
+    st.subheader("⚙️ AI Initialization Settings")
+    colA, colB = st.columns(2)
+    sel_type = colA.selectbox("Selection Method", ["Tournament", "Roulette Wheel"])
+    cross_type = colB.selectbox("Crossover Method", ["Uniform", "Single-Point"])
+
+    # =========================
     # 🚀 RUN AI
     # =========================
     if st.button("🚀 Optimize & Run AI Trading", type="primary", use_container_width=True):
@@ -154,7 +162,9 @@ def show_ai_dashboard():
         # 🔹 GA
         status.info("🎯 Running Genetic Algorithm...")
         progress.progress(30)
-        best_params = genetic_algorithm(df)
+        ga_result = genetic_algorithm(df, selection_type=sel_type, crossover_type=cross_type)
+        best_params = ga_result["best_params"]
+        st.session_state["ga_history"] = ga_result["history"]
 
         # 🔹 RL INIT
         status.info("🤖 Initializing RL Agent with GA...")
@@ -238,6 +248,76 @@ def show_ai_dashboard():
 
         if not trades_df.empty:
             st.dataframe(trades_df, use_container_width=True)
+
+        # =========================
+        # 🧬 GA & 🤖 RL INSIGHTS PANELS
+        # =========================
+        st.subheader("🧠 Under The Hood: AI Training Insights")
+
+        with st.expander("🧬 Genetic Algorithm Evolution (Step-by-Step)"):
+            st.write(f"The Genetic Algorithm evaluates simulated trading strategies, selecting the best via **{sel_type} Selection**, breeding them via **{cross_type} Crossover**, and applying random **Mutations**.")
+            
+            ga_history = st.session_state.get("ga_history", [])
+            if ga_history:
+                st.markdown("### 📈 Convergence Graph")
+                gens = [h["generation"] for h in ga_history]
+                top_fits = [h["best_fitness"] for h in ga_history]
+                avg_fits = [h["average_fitness"] for h in ga_history]
+                
+                fig_ga = go.Figure()
+                fig_ga.add_trace(go.Scatter(x=gens, y=top_fits, mode='lines+markers', name='Top Fitness'))
+                fig_ga.add_trace(go.Scatter(x=gens, y=avg_fits, mode='lines+markers', name='Avg Fitness'))
+                fig_ga.update_layout(xaxis_title="Generation", yaxis_title="Fitness Score", margin=dict(l=0, r=0, t=10, b=0))
+                st.plotly_chart(fig_ga, use_container_width=True)
+
+                st.divider()
+
+                gen_idx = st.slider("Select Generation to View:", 1, len(ga_history), 1) - 1
+                gen_data = ga_history[gen_idx]
+                
+                st.markdown(f"### Generation {gen_data['generation']}")
+                c1, c2 = st.columns(2)
+                c1.metric("Top Fitness (Score)", f"{gen_data['best_fitness']:.1f}")
+                c2.metric("Avg Fitness", f"{gen_data['average_fitness']:.1f}")
+                
+                if "elites_count" in gen_data:
+                    st.info(f"🏆 **Elitism:** The top {gen_data['elites_count']} individuals were carried over untouched to this generation.", icon="🛡️")
+
+                st.markdown("**Top Individuals:**")
+                st.json(gen_data["top_individuals"])
+                
+                st.markdown("**Breeding Operations (Sample):**")
+                # Show first 3 operations to not overload the UI
+                for idx, op in enumerate(gen_data["operations"][:3]):
+                    st.markdown(f"#### Child {idx+1}")
+                    st.write(f"🧬 **Parent 1:** {op['parent1']}")
+                    st.write(f"🧬 **Parent 2:** {op['parent2']}")
+                    st.write(f"✨ **Resulting Child (after Crossover & Mutation):** {op['child']}")
+                    if op['mutations']:
+                        st.warning(f"Mutations Applied on: {', '.join(op['mutations'])}")
+                    st.divider()
+
+        with st.expander("🤖 Reinforcement Learning Q-Learning Summary"):
+            st.write("The RL Agent learns optimal actions over time using the **Q-Learning** algorithm.")
+            st.markdown(
+                """
+                - **State Space**: `(MA Slope, RSI Zone, Price Zone, Volatility Zone)`
+                - **Action Space**: `[BUY, SELL, HOLD]`
+                - **Reward Structure**: Positive for profit-taking, negative/zero for inactivity and losses.
+                """
+            )
+                
+            if "ai_agent" in st.session_state:
+                st.markdown("**Top Learned Q-Values (State-Action Pairs):**")
+                q_table = st.session_state["ai_agent"].q_table
+                
+                # Sort descending by Q-value to show strongest learned rules
+                sorted_q = sorted(q_table.items(), key=lambda x: x[1], reverse=True)[:10]
+                q_df = pd.DataFrame([
+                    {"State": str(state), "Action": action, "Q-Value": round(val, 3)} 
+                    for (state, action), val in sorted_q
+                ])
+                st.dataframe(q_df, use_container_width=True)
 
         # =========================
         # ⚖️ AI VS USER
